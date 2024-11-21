@@ -100,4 +100,49 @@ app.post('/', async (c) => {
 	}
 });
 
+// ... existing code ...
+
+// 添加 list 接口
+app.get('/api/0/list', async (c) => {
+	try {
+		const user = c.req.query('user');
+		const device = c.req.query('device');
+
+		if (user && device) {
+			const prefix = `rec/${user}/${device}/`;
+			const objects = await c.env.STORAGE.list({ prefix });
+			const recFiles = objects.objects
+				.map(obj => obj.key.split('/').pop()) // 只返回文件名
+				.filter(name => name?.endsWith('.rec'));
+			return c.json(recFiles);
+		}
+
+		// 列出指定用户的所有设备
+		if (user) {
+			const prefix = `rec/${user}/`;
+			const objects = await c.env.STORAGE.list({ prefix });
+			const devices = new Set(
+				objects.objects
+					.map(obj => obj.key.split('/')[2]) // 获取设备名称
+					.filter(Boolean)
+			);
+			return c.json({ results: Array.from(devices) });
+		}
+
+		// 列出所有用户
+		const prefix = 'rec/';
+		const objects = await c.env.STORAGE.list({ prefix });
+		const users = new Set(
+			objects.objects
+				.map(obj => obj.key.split('/')[1]) // 获取用户名称
+				.filter(Boolean)
+		);
+		return c.json({ results: Array.from(users) });
+
+	} catch (error) {
+		console.error('Error listing data:', error);
+		return c.json({ error: 'Internal server error' }, 500);
+	}
+});
+
 export default app;
