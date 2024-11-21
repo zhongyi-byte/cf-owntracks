@@ -25,9 +25,9 @@ const app = new Hono<{ Bindings: Env }>();
 
 // 添加 CORS 支持
 app.use('/*', cors({
-	origin: '*',
-	allowMethods: ['POST', 'OPTIONS'],
-	allowHeaders: ['Content-Type'],
+	origin: 'http://localhost:5173',
+	allowHeaders: ['Content-Type', 'Authorization'],
+	credentials: true
 }));
 
 app.use('/*', async (c, next) => {
@@ -41,7 +41,7 @@ app.use('/*', async (c, next) => {
 app.post('/', async (c) => {
 	try {
 		const payload = await c.req.json();
-		
+
 		// 验证基本字段
 		if (payload._type !== 'location' || !payload.lat || !payload.lon) {
 			return c.json({ error: 'Invalid location payload' }, 400);
@@ -58,18 +58,18 @@ app.post('/', async (c) => {
 		}
 
 		const [_, username, device] = topicParts;
-		
+
 		// 生成存储路径
 		const now = new Date();
 		// 如果 payload 包含 tst (Unix timestamp)，使用它作为时间戳
-		const timestamp = payload.tst 
+		const timestamp = payload.tst
 			? new Date(payload.tst * 1000).toISOString()
 			: now.toISOString();
-		
+
 		const month = timestamp.substring(0, 7); // YYYY-MM
 		const storagePath = `rec/${username}/${device}/${month}.rec`;
 		console.log(storagePath);
-		
+
 		// 格式化记录行
 		const newRecord = `${timestamp} * ${JSON.stringify(payload)}\n`;
 
