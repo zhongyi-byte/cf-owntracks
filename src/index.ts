@@ -107,6 +107,68 @@ app.post('/', async (c) => {
 	}
 });
 
+app.get('/api/0/locations', async (c) => {
+	try {
+		const user = c.req.query('user');
+		const device = c.req.query('device');
+		const from = c.req.query('from');
+		const to = c.req.query('to');
+
+		// 验证必需参数
+		if (!user || !device) {
+			return c.json({ error: 'User and device parameters are required' }, 400);
+		}
+
+		// 解析时间范围
+		const fromDate = from ? new Date(from) : new Date(0); // 如果没有 from，使用最早时间
+		const toDate = to ? new Date(to) : new Date(); // 如果没有 to，使用当前时间
+
+		// 获取需要读取的月份列表
+		const months: string[] = [];
+		const currentMonth = new Date(fromDate);
+		while (currentMonth <= toDate) {
+			months.push(currentMonth.toISOString().substring(0, 7)); // YYYY-MM
+			currentMonth.setMonth(currentMonth.getMonth() + 1);
+		}
+
+		// 存储所有位置数据
+		let locations: any[] = [];
+
+		// 只读取需要的月份文件
+		for (const month of months) {
+			const filePath = `rec/${user}/${device}/${month}.rec`;
+			const file = await c.env.STORAGE.get(filePath);
+			if (!file) continue;
+
+			const content = await file.text();
+			const lines = content.split('\n').filter(line => line.trim());
+
+			for (const line of lines) {
+				const [timestamp, _, jsonStr] = line.split(' ');
+				if (!jsonStr) continue;
+
+				const recordDate = new Date(timestamp);
+
+				// 时间过滤
+				if (recordDate < fromDate || recordDate > toDate) continue;
+
+				try {
+					const location = JSON.parse(jsonStr);
+					locations.push(location);
+				} catch (e) {
+					console.error('Error parsing location data:', e);
+				}
+			}
+		}
+
+		return c.json({ data: locations });
+
+	} catch (error) {
+		console.error('Error processing locations request:', error);
+		return c.json({ error: 'Internal server error' }, 500);
+	}
+});
+
 app.get('/api/0/list', async (c) => {
 	try {
 		const user = c.req.query('user');
@@ -149,6 +211,10 @@ app.get('/api/0/list', async (c) => {
 	}
 });
 
+app.get('/api/0/version', async (c) => {
+	return c.json({ version: '0.0.1' });
+});
+
 app.get('/api/0/last', async (c) => {
 	try {
 		const user = c.req.query('user');
@@ -188,14 +254,14 @@ async function updateLastLocations(env: Env, username: string, device: string, l
 		const userKey = `last:${username}`;
 		const existingUserData = await env.LAST_LOCATIONS.get(userKey);
 		let userDevices = [];
-        if (existingUserData) {
-            userDevices = JSON.parse(existingUserData);
-            // 从 topic 解析设备信息进行过滤
-            userDevices = userDevices.filter(loc => {
-                const [_, __, deviceId] = loc.topic.split('/');
-                return deviceId !== device;
-            });
-        }
+		if (existingUserData) {
+			userDevices = JSON.parse(existingUserData);
+			// 从 topic 解析设备信息进行过滤
+			userDevices = userDevices.filter(loc => {
+				const [_, __, deviceId] = loc.topic.split('/');
+				return deviceId !== device;
+			});
+		}
 		userDevices.push(lastLocation);
 		await env.LAST_LOCATIONS.put(userKey, JSON.stringify(userDevices));
 
@@ -203,14 +269,14 @@ async function updateLastLocations(env: Env, username: string, device: string, l
 		const globalKey = 'last:all';
 		const existingGlobalData = await env.LAST_LOCATIONS.get(globalKey);
 		let allLocations = [];
-        if (existingGlobalData) {
-            allLocations = JSON.parse(existingGlobalData);
-            // 从 topic 解析用户和设备信息进行过滤
-            allLocations = allLocations.filter(loc => {
-                const [_, userId, deviceId] = loc.topic.split('/');
-                return !(userId === username && deviceId === device);
-            });
-        }
+		if (existingGlobalData) {
+			allLocations = JSON.parse(existingGlobalData);
+			// 从 topic 解析用户和设备信息进行过滤
+			allLocations = allLocations.filter(loc => {
+				const [_, userId, deviceId] = loc.topic.split('/');
+				return !(userId === username && deviceId === device);
+			});
+		}
 		allLocations.push(lastLocation);
 		await env.LAST_LOCATIONS.put(globalKey, JSON.stringify(allLocations));
 	} catch (error) {
