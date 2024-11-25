@@ -19,6 +19,7 @@ interface Env {
 	STORAGE: R2Bucket;
 	BASIC_AUTH_USER: string;    // 添加用户名环境变量
 	BASIC_AUTH_PASS: string;    // 添加密码环境变量
+	LAST_LOCATIONS: KVNamespace;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -42,6 +43,10 @@ app.post('/', async (c) => {
 	try {
 		const payload = await c.req.json();
 
+		if (payload._type !== 'location') {
+			return c.json([]);
+		}
+
 		// 验证基本字段
 		if (payload._type !== 'location' || !payload.lat || !payload.lon) {
 			return c.json({ error: 'Invalid location payload' }, 400);
@@ -58,6 +63,8 @@ app.post('/', async (c) => {
 		}
 
 		const [_, username, device] = topicParts;
+
+		await updateLastLocations(c.env, username, device, payload);
 
 		// 生成存储路径
 		const now = new Date();
@@ -100,9 +107,6 @@ app.post('/', async (c) => {
 	}
 });
 
-// ... existing code ...
-
-// 添加 list 接口
 app.get('/api/0/list', async (c) => {
 	try {
 		const user = c.req.query('user');
@@ -144,5 +148,77 @@ app.get('/api/0/list', async (c) => {
 		return c.json({ error: 'Internal server error' }, 500);
 	}
 });
+
+app.get('/api/0/last', async (c) => {
+	try {
+		const user = c.req.query('user');
+		const device = c.req.query('device');
+		const fields = c.req.query('fields')?.split(',');
+
+		let key;
+		if (user && device) {
+			key = `last:${user}:${device}`;
+		} else if (user) {
+			key = `last:${user}`;
+		} else {
+			key = 'last:all';
+		}
+
+		const lastLocation = await c.env.LAST_LOCATIONS.get(key);
+		if (!lastLocation) {
+			return c.json({ error: 'No location data found' }, 404);
+		}
+
+		let result = JSON.parse(lastLocation);
+
+		return c.json(result);
+	} catch (error) {
+		console.error('Error fetching last location:', error);
+		return c.json({ error: 'Internal server error' }, 500);
+	}
+});
+
+async function updateLastLocations(env: Env, username: string, device: string, lastLocation: any) {
+	try {
+		// 1. 更新特定用户和设备的最新位置
+		const userDeviceKey = `last:${username}:${device}`;
+		await env.LAST_LOCATIONS.put(userDeviceKey, JSON.stringify([lastLocation]));
+
+		// 2. 更新用户的所有设备最新位置列表
+		const userKey = `last:${username}`;
+		const existingUserData = await env.LAST_LOCATIONS.get(userKey);
+		let userDevices = [];
+        if (existingUserData) {
+            userDevices = JSON.parse(existingUserData);
+            // 从 topic 解析设备信息进行过滤
+            userDevices = userDevices.filter(loc => {
+                const [_, __, deviceId] = loc.topic.split('/');
+                return deviceId !== device;
+            });
+        }
+		userDevices.push(lastLocation);
+		await env.LAST_LOCATIONS.put(userKey, JSON.stringify(userDevices));
+
+		// 3. 更新全局最新位置
+		const globalKey = 'last:all';
+		const existingGlobalData = await env.LAST_LOCATIONS.get(globalKey);
+		let allLocations = [];
+        if (existingGlobalData) {
+            allLocations = JSON.parse(existingGlobalData);
+            // 从 topic 解析用户和设备信息进行过滤
+            allLocations = allLocations.filter(loc => {
+                const [_, userId, deviceId] = loc.topic.split('/');
+                return !(userId === username && deviceId === device);
+            });
+        }
+		allLocations.push(lastLocation);
+		await env.LAST_LOCATIONS.put(globalKey, JSON.stringify(allLocations));
+	} catch (error) {
+		console.error('Error updating last locations:', error);
+		throw error; // 向上传播错误以便主函数处理
+	}
+}
+
+
 
 export default app;

@@ -19,3 +19,9 @@ bucket_name = "cf-owntracks"
 [vars]
 BASIC_AUTH_USER = "111"
 BASIC_AUTH_PASS = "111"
+
+# Bind a KV Namespace. Use KV as a simple key-value store.
+# Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
+[[kv_namespaces]]
+binding = "LAST_LOCATIONS"
+id = "79f37c45ce864cbf82f5ce573b07ae06"
