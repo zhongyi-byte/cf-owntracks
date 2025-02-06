@@ -24,6 +24,38 @@ interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
+// =============== 新增测试路由 Start ===============
+
+// GET 测试: 访问 /test-get 时
+app.get('/test-get', (c) => {
+  // 简单返回字符串，用于确认部署 & 路由生效
+  return c.text('连接成功！Cloudflare Workers 正常运行！')
+})
+
+// POST 测试: 访问 /test-post 时
+app.post('/test-post', async (c) => {
+  try {
+    // 解析请求体
+    const payload = await c.req.json()
+    // 可以进行一些调试或日志输出
+    console.log('POST /test-post payload:', payload)
+
+    // 返回成功信息
+    return c.json({
+      success: true,
+      message: '已收到 POST 数据',
+      received: payload
+    })
+  } catch (error) {
+    console.error('Error in /test-post:', error)
+    return c.json({ success: false, error: 'Invalid JSON' }, 400)
+  }
+})
+
+// =============== 新增测试路由 End ===============
+
+
+
 // 添加 CORS 支持
 app.use('/*', cors({
 	origin: 'http://localhost:5173',
