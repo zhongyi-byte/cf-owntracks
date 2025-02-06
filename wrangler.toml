@@ -14,14 +14,14 @@ enabled = true
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#r2-buckets
 [[r2_buckets]]
 binding = "STORAGE"
-bucket_name = "cf-owntracks"
+bucket_name = "owntracks"
 
 [vars]
-BASIC_AUTH_USER = "111"
-BASIC_AUTH_PASS = "111"
+BASIC_AUTH_USER = "zyi"
+BASIC_AUTH_PASS = "1234"
 
 # Bind a KV Namespace. Use KV as a simple key-value store.
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
 [[kv_namespaces]]
 binding = "LAST_LOCATIONS"
-id = "79f37c45ce864cbf82f5ce573b07ae06"
+id = "4a093946438c4c918e4b77f9e769346c"
