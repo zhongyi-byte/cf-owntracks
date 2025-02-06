@@ -39,7 +39,7 @@ app.use('/*', async (c, next) => {
 	})(c, next);
 });
 
-app.post('/', async (c) => {
+app.post('/pub', async (c) => {
 	try {
 		const payload = await c.req.json();
 
